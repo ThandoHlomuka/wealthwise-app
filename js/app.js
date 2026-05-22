@@ -591,6 +591,8 @@ const App = {
     const circumference = 2 * Math.PI * 54;
     const offset = circumference - (score / 100) * circumference;
 
+    const scoreGradId = score >= 70 ? 'scoreGreenGrad' : score >= 40 ? 'scoreAmberGrad' : 'scoreRedGrad';
+
     const buyPicks = stockPicks.filter(p => p.recommendation === 'Buy').slice(0, 4);
     const marketNews = marketData && marketData.news ? marketData.news.slice(0, 3) : [];
 
@@ -602,12 +604,26 @@ const App = {
       <!-- Score Card -->
       <div class="card" style="padding: 1.5rem; text-align: center; margin-bottom: 0.75rem;">
         <svg width="140" height="140" viewBox="0 0 120 120">
-          <circle cx="60" cy="60" r="54" fill="none" stroke="#e5e7eb" stroke-width="10"/>
-          <circle cx="60" cy="60" r="54" fill="none" stroke="${scoreColor}" stroke-width="10"
+          <defs>
+            <linearGradient id="scoreGreenGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#10b981"/>
+              <stop offset="100%" stop-color="#6ee7b7"/>
+            </linearGradient>
+            <linearGradient id="scoreAmberGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#f59e0b"/>
+              <stop offset="100%" stop-color="#fbbf24"/>
+            </linearGradient>
+            <linearGradient id="scoreRedGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#ef4444"/>
+              <stop offset="100%" stop-color="#fca5a5"/>
+            </linearGradient>
+          </defs>
+          <circle cx="60" cy="60" r="54" fill="none" stroke="var(--border)" stroke-width="10"/>
+          <circle cx="60" cy="60" r="54" fill="none" stroke="url(#${scoreGradId})" stroke-width="10"
             stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"
-            transform="rotate(-90 60 60)" stroke-linecap="round"/>
+            transform="rotate(-90 60 60)" stroke-linecap="round" class="score-circle-fill"/>
           <text x="60" y="50" text-anchor="middle" font-size="28" font-weight="700" fill="${scoreColor}">${score}</text>
-          <text x="60" y="72" text-anchor="middle" font-size="12" fill="#6b7280">/ 100</text>
+          <text x="60" y="72" text-anchor="middle" font-size="12" fill="var(--text-muted)">/ 100</text>
         </svg>
         <h3 style="margin-top: 0.5rem;">Financial Health Score</h3>
       </div>
@@ -1318,8 +1334,13 @@ const App = {
       <svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="var(--primary)" stop-opacity="0.3"/>
-            <stop offset="100%" stop-color="var(--primary)" stop-opacity="0.02"/>
+            <stop offset="0%" stop-color="#7c3aed" stop-opacity="0.35"/>
+            <stop offset="100%" stop-color="#7c3aed" stop-opacity="0.02"/>
+          </linearGradient>
+          <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#7c3aed"/>
+            <stop offset="50%" stop-color="#a78bfa"/>
+            <stop offset="100%" stop-color="#06b6d4"/>
           </linearGradient>
         </defs>
         <g transform="translate(${pad.left}, ${pad.top})">
@@ -1329,7 +1350,7 @@ const App = {
           ${yLabels}
           ${labels}
         </g>
-        <path d="${areaPath}" class="chart-area" style="fill: url(#areaGradient);"/>
+        <path d="${areaPath}" class="chart-area"/>
         <path d="${path}" class="chart-line"/>
         ${dots}
       </svg>
@@ -1435,9 +1456,9 @@ const App = {
         return `${months[parseInt(m) - 1]}`;
       })();
       return `
-        <rect x="${x}" y="${pad.top + ih - incomeH}" width="${barW}" height="${incomeH}" rx="3" class="bar-rect" fill="var(--success)"
+        <rect x="${x}" y="${pad.top + ih - incomeH}" width="${barW}" height="${incomeH}" rx="3" class="bar-rect" fill="url(#incomeBarGradient)"
           title="Income: ${this.fmt(d.income)}"/>
-        <rect x="${x + barW + 2}" y="${pad.top + ih - expenseH}" width="${barW}" height="${expenseH}" rx="3" class="bar-rect" fill="var(--danger)"
+        <rect x="${x + barW + 2}" y="${pad.top + ih - expenseH}" width="${barW}" height="${expenseH}" rx="3" class="bar-rect" fill="url(#expenseBarGradient)"
           title="Expenses: ${this.fmt(d.expense)}"/>
         <text x="${pad.left + i * gap + gap / 2}" y="${h - pad.bottom + 16}" text-anchor="middle" fill="var(--text-muted)" font-size="9" font-family="var(--font)">${label}</text>
       `;
@@ -1456,10 +1477,20 @@ const App = {
 
     container.innerHTML = `
       <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
-        <div class="legend-item"><div class="legend-color" style="background:var(--success)"></div>Income</div>
-        <div class="legend-item"><div class="legend-color" style="background:var(--danger)"></div>Expenses</div>
+        <div class="legend-item"><div class="legend-color" style="background:#7c3aed"></div>Income</div>
+        <div class="legend-item"><div class="legend-color" style="background:#dc2626"></div>Expenses</div>
       </div>
       <svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="incomeBarGradient" x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0%" stop-color="#7c3aed"/>
+            <stop offset="100%" stop-color="#a78bfa"/>
+          </linearGradient>
+          <linearGradient id="expenseBarGradient" x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0%" stop-color="#dc2626"/>
+            <stop offset="100%" stop-color="#fca5a5"/>
+          </linearGradient>
+        </defs>
         ${yGrid}
         ${yLabels}
         ${bars}

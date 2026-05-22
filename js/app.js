@@ -1349,25 +1349,40 @@ const App = {
     const total = entries.reduce((s, [, v]) => s + v, 0);
     const colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'];
     const r = 70;
+    const ir = 44;
     const cx = 100;
     const cy = 100;
-    const circumference = 2 * Math.PI * r;
 
-    let cumulative = 0;
-    const segments = entries.slice(0, 6).map(([cat, val], i) => {
+    const visible = entries.slice(0, 6);
+    let cumulativePct = 0;
+
+    const segments = visible.map(([cat, val], i) => {
       const pct = val / total;
-      const offset = circumference * (1 - cumulative - pct);
-      const dashArray = circumference * pct;
-      cumulative += pct;
+      const startAng = cumulativePct * 360 - 90;
+      const endAng = (cumulativePct + pct) * 360 - 90;
+      cumulativePct += pct;
+
+      const sr = startAng * Math.PI / 180;
+      const er = endAng * Math.PI / 180;
+
+      const ox = cx + r * Math.cos(sr);
+      const oy = cy + r * Math.sin(sr);
+      const ix = cx + ir * Math.cos(sr);
+      const iy = cy + ir * Math.sin(sr);
+      const ox2 = cx + r * Math.cos(er);
+      const oy2 = cy + r * Math.sin(er);
+      const ix2 = cx + ir * Math.cos(er);
+      const iy2 = cy + ir * Math.sin(er);
+
+      const large = pct > 0.5 ? 1 : 0;
       const color = colors[i % colors.length];
-      return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="20"
-        stroke-dasharray="${dashArray} ${circumference - dashArray}"
-        stroke-dashoffset="${-circumference * (1 - cumulative + pct)}"
-        transform="rotate(-90 ${cx} ${cy})" stroke-linecap="butt"
-        class="donut-segment"/>`;
+
+      const d = `M ${ox} ${oy} A ${r} ${r} 0 ${large} 1 ${ox2} ${oy2} L ${ix2} ${iy2} A ${ir} ${ir} 0 ${large} 0 ${ix} ${iy} Z`;
+
+      return `<path d="${d}" fill="${color}" class="donut-segment"/>`;
     }).join('');
 
-    const legend = entries.slice(0, 6).map(([cat, val], i) => {
+    const legend = visible.map(([cat, val], i) => {
       const pct = ((val / total) * 100).toFixed(1);
       return `<div class="legend-item"><div class="legend-color" style="background:${colors[i % colors.length]}"></div>${cat} (${pct}%)</div>`;
     }).join('');

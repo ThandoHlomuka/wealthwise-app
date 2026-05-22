@@ -260,7 +260,7 @@ const App = {
           return `
             <div class="card">
               <strong style="display: block; margin-bottom: 0.75rem;">📊 Spending by Category</strong>
-              <div class="chart-container" id="spending-chart" style="height: 180px;"></div>
+              <div class="chart-container" id="spending-chart"></div>
             </div>
           `;
         })()}
@@ -1344,14 +1344,14 @@ const App = {
       cats[t.category] = (cats[t.category] || 0) + t.amount;
     });
     const entries = Object.entries(cats).sort((a, b) => b[1] - a[1]);
-    if (entries.length === 0) { container.innerHTML = '<p class="text-muted" style="padding: 1rem 0; text-align: center;">No expense data</p>'; return; }
+    if (entries.length === 0) { return; }
 
     const total = entries.reduce((s, [, v]) => s + v, 0);
     const colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'];
-    const r = 70;
-    const ir = 44;
-    const cx = 100;
-    const cy = 100;
+    const r = 80;
+    const ir = 50;
+    const cx = 120;
+    const cy = 120;
 
     const visible = entries.slice(0, 6);
     let cumulativePct = 0;
@@ -1389,12 +1389,14 @@ const App = {
     const remaining = entries.length > 6 ? `<div class="legend-item" style="color: var(--text-muted);">+${entries.length - 6} more</div>` : '';
 
     container.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
-        <svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-          ${segments}
-          <text x="${cx}" y="${cy - 6}" text-anchor="middle" font-size="22" font-weight="800" fill="var(--text)">${this.fmt(total)}</text>
-          <text x="${cx}" y="${cy + 14}" text-anchor="middle" font-size="11" fill="var(--text-muted)">Total spent</text>
-        </svg>
+      <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; justify-content: center;">
+        <div style="flex-shrink: 0; width: 180px; height: 180px;">
+          <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
+            ${segments}
+            <text x="${cx}" y="${cy - 6}" text-anchor="middle" font-size="24" font-weight="800" fill="var(--text)">${this.fmt(total)}</text>
+            <text x="${cx}" y="${cy + 14}" text-anchor="middle" font-size="12" fill="var(--text-muted)">Total spent</text>
+          </svg>
+        </div>
         <div class="chart-legend">${legend}${remaining}</div>
       </div>
     `;

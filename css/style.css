@@ -517,7 +517,7 @@ body {
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
 
 /* ── SVG Charts ── */
-.chart-container { width: 100%; overflow: hidden; }
+.chart-container { width: 100%; }
 .chart-container svg { width: 100%; height: auto; }
 .chart-tooltip {
   position: absolute;

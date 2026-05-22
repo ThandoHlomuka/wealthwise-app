@@ -258,7 +258,7 @@ const App = {
           const entries = Object.entries(cats).sort((a, b) => b[1] - a[1]).slice(0, 6);
           if (entries.length === 0) return '';
           const catTotal = entries.reduce((s, [, v]) => s + v, 0);
-          const catColors = ['#7c3aed', '#059669', '#d97706', '#dc2626', '#2563eb', '#db2777'];
+          const catColors = ['#2D31FA', '#00E676', '#F59E0B', '#EF4444', '#06B6D4', '#EC4899'];
           return `
             <div class="card">
               <div class="flex flex-between" style="margin-bottom: 0.6rem;">
@@ -607,7 +607,7 @@ const App = {
       insights = advise.insights || [];
     }
 
-    const scoreColor = score >= 70 ? '#22c55e' : score >= 40 ? '#f59e0b' : '#ef4444';
+    const scoreColor = score >= 70 ? '#00E676' : score >= 40 ? '#F59E0B' : '#EF4444';
     const circumference = 2 * Math.PI * 54;
     const offset = circumference - (score / 100) * circumference;
 
@@ -626,16 +626,16 @@ const App = {
         <svg width="140" height="140" viewBox="0 0 120 120">
           <defs>
             <linearGradient id="scoreGreenGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#10b981"/>
-              <stop offset="100%" stop-color="#6ee7b7"/>
+              <stop offset="0%" stop-color="#00E676"/>
+              <stop offset="100%" stop-color="#69F0AE"/>
             </linearGradient>
             <linearGradient id="scoreAmberGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#f59e0b"/>
-              <stop offset="100%" stop-color="#fbbf24"/>
+              <stop offset="0%" stop-color="#F59E0B"/>
+              <stop offset="100%" stop-color="#FCD34D"/>
             </linearGradient>
             <linearGradient id="scoreRedGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#ef4444"/>
-              <stop offset="100%" stop-color="#fca5a5"/>
+              <stop offset="0%" stop-color="#EF4444"/>
+              <stop offset="100%" stop-color="#FCA5A5"/>
             </linearGradient>
           </defs>
           <circle cx="60" cy="60" r="54" fill="none" stroke="var(--border)" stroke-width="10"/>
@@ -1354,13 +1354,13 @@ const App = {
       <svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#7c3aed" stop-opacity="0.35"/>
-            <stop offset="100%" stop-color="#7c3aed" stop-opacity="0.02"/>
+            <stop offset="0%" stop-color="#2D31FA" stop-opacity="0.35"/>
+            <stop offset="100%" stop-color="#2D31FA" stop-opacity="0.02"/>
           </linearGradient>
           <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stop-color="#7c3aed"/>
-            <stop offset="50%" stop-color="#a78bfa"/>
-            <stop offset="100%" stop-color="#06b6d4"/>
+            <stop offset="0%" stop-color="#2D31FA"/>
+            <stop offset="50%" stop-color="#D0D4F9"/>
+            <stop offset="100%" stop-color="#00E676"/>
           </linearGradient>
         </defs>
         <g transform="translate(${pad.left}, ${pad.top})">
@@ -1388,7 +1388,7 @@ const App = {
     if (entries.length === 0) { return; }
 
     const total = entries.reduce((s, [, v]) => s + v, 0);
-    const colors = ['#7c3aed', '#059669', '#d97706', '#dc2626', '#2563eb', '#db2777'];
+    const colors = ['#2D31FA', '#00E676', '#F59E0B', '#EF4444', '#06B6D4', '#EC4899'];
 
     container.innerHTML = `
       <div style="padding: 0.25rem 0;">
@@ -1465,18 +1465,18 @@ const App = {
 
     container.innerHTML = `
       <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
-        <div class="legend-item"><div class="legend-color" style="background:#7c3aed"></div>Income</div>
-        <div class="legend-item"><div class="legend-color" style="background:#dc2626"></div>Expenses</div>
+        <div class="legend-item"><div class="legend-color" style="background:#2D31FA"></div>Income</div>
+        <div class="legend-item"><div class="legend-color" style="background:#EF4444"></div>Expenses</div>
       </div>
       <svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="incomeBarGradient" x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0%" stop-color="#7c3aed"/>
-            <stop offset="100%" stop-color="#a78bfa"/>
+            <stop offset="0%" stop-color="#2D31FA"/>
+            <stop offset="100%" stop-color="#D0D4F9"/>
           </linearGradient>
           <linearGradient id="expenseBarGradient" x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0%" stop-color="#dc2626"/>
-            <stop offset="100%" stop-color="#fca5a5"/>
+            <stop offset="0%" stop-color="#EF4444"/>
+            <stop offset="100%" stop-color="#FCA5A5"/>
           </linearGradient>
         </defs>
         ${yGrid}

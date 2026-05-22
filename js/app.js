@@ -5,6 +5,7 @@ const App = {
   profile: null,
 
   init() {
+    this.applyTheme();
     const profile = Storage.getProfile();
     if (!profile.name || profile.name === 'User') {
       Storage.saveProfile(SEED.profile);
@@ -27,6 +28,37 @@ const App = {
     this.startNetWorthTracking();
     window.addEventListener('hashchange', () => this.handleRoute());
     this.handleRoute();
+  },
+
+  getTheme() {
+    return localStorage.getItem('ww_theme') || 'light';
+  },
+
+  applyTheme() {
+    const theme = this.getTheme();
+    document.body.classList.toggle('dark', theme === 'dark');
+  },
+
+  toggleTheme() {
+    const current = this.getTheme();
+    const next = current === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('ww_theme', next);
+    this.applyTheme();
+    this.renderNav();
+    this.showToast(next === 'dark' ? '🌙' : '☀️', `${next === 'dark' ? 'Dark' : 'Light'} mode activated`, 'info');
+  },
+
+  showToast(icon, message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `<span class="toast-icon">${icon}</span><span class="toast-msg">${message}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add('toast-out');
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
   },
 
   showOnboarding() {
@@ -85,14 +117,21 @@ const App = {
   },
 
   renderNav() {
+    const themeIcon = this.getTheme() === 'dark' ? '🌙' : '☀️';
     const nav = document.getElementById('main-nav');
     nav.innerHTML = `
-      <div class="flex flex-between" style="align-items: center; padding: 0.75rem 1rem;">
-        <div class="flex gap-1" style="align-items: center;">
-          <span style="font-size: 1.5rem;">✨</span>
-          <span style="font-weight: 700; font-size: 1.25rem;">WealthWise AI</span>
+      <div class="nav-inner">
+        <div class="nav-brand" onclick="App.navigate('dashboard')">
+          <span class="nav-logo">✨</span>
+          <span class="nav-title">WealthWise AI</span>
         </div>
-        <span class="badge badge-primary" style="font-size: 0.65rem; padding: 0.2rem 0.5rem;">BETA</span>
+        <span class="badge badge-primary" style="font-size: 0.62rem; padding: 0.15rem 0.4rem;">BETA</span>
+        <div class="nav-spacer"></div>
+        <button class="theme-toggle" onclick="App.toggleTheme()" title="Toggle dark mode">${themeIcon}</button>
+        <div class="nav-user">
+          <span>${this.profile?.name || 'User'}</span>
+          <div class="nav-avatar">${(this.profile?.name || 'U')[0]}</div>
+        </div>
       </div>
     `;
   },
@@ -144,78 +183,156 @@ const App = {
     const savingsRate = monthlyIncome > 0 ? ((monthlyIncome - monthlySpend) / monthlyIncome * 100) : 0;
     const recent = transactions.slice().sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
     const advisorData = AIAdvisor.getAdvice(this.profile, accounts, transactions);
-
     const totalAssets = accounts.filter(a => a.type !== 'loan' && a.type !== 'credit').reduce((s, a) => s + a.balance, 0);
     const totalLiabilities = accounts.filter(a => a.type === 'loan' || a.type === 'credit').reduce((s, a) => s + a.balance, 0);
+    const holdings = this.getHoldings() || [];
+    const portfolioValue = holdings.reduce((s, h) => s + (h.value || h.balance || 0), 0);
 
     let advisorScore = 65;
     if (advisorData && advisorData.score) {
       advisorScore = advisorData.score.overall || 65;
     }
 
+    const netWorthHistory = Storage.getNetWorthHistory() || [];
+
     main.innerHTML = `
-      <div class="view-header">
-        <h2>Dashboard</h2>
+      <div class="welcome-banner">
+        <h2>👋 Welcome back, ${this.profile?.name || 'Thando'}</h2>
+        <p>Here's your financial snapshot for today</p>
       </div>
 
       <div class="stat-row">
-        <div class="stat-card">
-          <span class="text-muted">Net Worth</span>
-          <span style="font-size: 1.5rem; font-weight: 700;">${this.fmt(netWorth)}</span>
+        <div class="stat-card accent-primary" id="stat-networth">
+          <div class="stat-icon">💰</div>
+          <div class="stat-label">Net Worth</div>
+          <div class="stat-value" data-target="${netWorth}">R0</div>
+          <div class="stat-change">Total assets minus liabilities</div>
         </div>
-        <div class="stat-card">
-          <span class="text-muted">Income / Month</span>
-          <span style="font-size: 1.25rem; font-weight: 600;" class="text-success">${this.fmt(monthlyIncome)}</span>
+        <div class="stat-card accent-success" id="stat-income">
+          <div class="stat-icon">📈</div>
+          <div class="stat-label">Monthly Income</div>
+          <div class="stat-value text-success" data-target="${monthlyIncome}">R0</div>
+          <div class="stat-change positive">${this.fmt(monthlyIncome - monthlySpend)} available</div>
         </div>
-        <div class="stat-card">
-          <span class="text-muted">Spend / Month</span>
-          <span style="font-size: 1.25rem; font-weight: 600;" class="text-danger">${this.fmt(monthlySpend)}</span>
+        <div class="stat-card accent-danger" id="stat-spend">
+          <div class="stat-icon">💸</div>
+          <div class="stat-label">Monthly Spend</div>
+          <div class="stat-value text-danger" data-target="${monthlySpend}">R0</div>
+          <div class="stat-change ${savingsRate >= 20 ? 'positive' : 'negative'}">${savingsRate.toFixed(1)}% savings rate</div>
         </div>
-        <div class="stat-card">
-          <span class="text-muted">Savings Rate</span>
-          <span style="font-size: 1.25rem; font-weight: 600;" class="${savingsRate >= 20 ? 'text-success' : 'text-danger'}">${savingsRate.toFixed(1)}%</span>
+        <div class="stat-card accent-warning" id="stat-portfolio">
+          <div class="stat-icon">📊</div>
+          <div class="stat-label">Portfolio</div>
+          <div class="stat-value" data-target="${portfolioValue}">R0</div>
+          <div class="stat-change">${holdings.length} holdings</div>
         </div>
       </div>
 
-      <div class="card" style="padding: 1rem; margin-bottom: 0.75rem;">
-        <div class="flex flex-between" style="margin-bottom: 0.5rem;">
-          <strong>Account Balances</strong>
-          <span style="font-weight: 600;">${this.fmt(totalAssets)}</span>
+      ${netWorthHistory.length > 1 ? `
+      <div class="card">
+        <div class="card-header">
+          <strong>📈 Net Worth History</strong>
+          <span class="badge badge-info">${netWorthHistory.length} snapshots</span>
         </div>
-        ${accounts.length === 0 ? '<p class="text-muted">No accounts yet</p>' :
-          accounts.map(a => `
-            <div class="flex flex-between" style="padding: 0.35rem 0; font-size: 0.9rem;">
-              <span>${this.getAccountIcon(a.type)} ${a.name}</span>
-              <span style="font-weight: 500;">${this.fmt(a.balance)}</span>
+        <div class="chart-container" id="networth-chart"></div>
+      </div>` : ''}
+
+      <div class="two-col">
+        <div class="card">
+          <strong style="display: block; margin-bottom: 0.75rem;">💳 Account Balances</strong>
+          ${accounts.length === 0 ? '<p class="text-muted">No accounts yet</p>' :
+            accounts.slice(0, 5).map(a => `
+              <div class="flex flex-between" style="padding: 0.4rem 0; font-size: 0.85rem; border-bottom: 1px solid var(--border-light);">
+                <span>${this.getAccountIcon(a.type)} ${a.name}</span>
+                <span style="font-weight: 600;">${this.fmt(a.balance)}</span>
+              </div>
+            `).join('')}
+          ${accounts.length > 5 ? `<div style="padding: 0.4rem 0; font-size: 0.8rem; color: var(--primary); cursor: pointer;" onclick="App.navigate('accounts')">+ ${accounts.length - 5} more accounts →</div>` : ''}
+        </div>
+
+        ${(() => {
+          const cats = {};
+          transactions.filter(t => t.type === 'expense').forEach(t => {
+            cats[t.category] = (cats[t.category] || 0) + t.amount;
+          });
+          const entries = Object.entries(cats).sort((a, b) => b[1] - a[1]).slice(0, 5);
+          if (entries.length === 0) return '';
+          return `
+            <div class="card">
+              <strong style="display: block; margin-bottom: 0.75rem;">📊 Spending by Category</strong>
+              <div class="chart-container" id="spending-chart" style="height: 180px;"></div>
             </div>
-          `).join('')}
+          `;
+        })()}
       </div>
 
-      <div class="card" style="padding: 1rem; margin-bottom: 0.75rem;">
-        <strong>Recent Transactions</strong>
-        ${recent.length === 0 ? '<p class="text-muted mt-1">No transactions yet</p>' :
+      <div class="card">
+        <div class="card-header">
+          <strong>🔄 Monthly Income vs Expenses</strong>
+        </div>
+        <div class="chart-container" id="income-expense-chart"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <strong>💡 Recent Transactions</strong>
+          <span class="badge badge-primary">${transactions.length} total</span>
+        </div>
+        ${recent.length === 0 ? '<p class="text-muted">No transactions yet</p>' :
           recent.map(t => `
-            <div class="flex flex-between" style="padding: 0.35rem 0; font-size: 0.9rem;">
+            <div class="flex flex-between" style="padding: 0.4rem 0; font-size: 0.85rem; border-bottom: 1px solid var(--border-light);">
               <span>${t.icon || '💳'} ${t.description || t.category}</span>
-              <span class="${t.type === 'income' ? 'text-success' : 'text-danger'}">${t.type === 'income' ? '+' : '-'}${this.fmt(t.amount)}</span>
+              <span class="${t.type === 'income' ? 'text-success' : 'text-danger'}" style="font-weight: 600;">${t.type === 'income' ? '+' : '-'}${this.fmt(t.amount)}</span>
             </div>
           `).join('')}
       </div>
 
-      <div class="card" style="padding: 1rem; margin-bottom: 0.75rem;">
-        <div class="flex flex-between">
-          <strong>Financial Health Score</strong>
-          <span class="${advisorScore >= 70 ? 'text-success' : advisorScore >= 40 ? 'text-warning' : 'text-danger'}" style="font-weight: 700;">${advisorScore}/100</span>
+      <div class="card">
+        <div class="flex flex-between" style="margin-bottom: 0.5rem;">
+          <strong>🏥 Financial Health Score</strong>
+          <span class="${advisorScore >= 70 ? 'text-success' : advisorScore >= 40 ? 'text-warning' : 'text-danger'}" style="font-weight: 700; font-size: 1.1rem;">${advisorScore}/100</span>
+        </div>
+        <div style="height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;">
+          <div style="width: ${advisorScore}%; height: 100%; background: ${advisorScore >= 70 ? 'var(--success)' : advisorScore >= 40 ? 'var(--warning)' : 'var(--danger)'}; border-radius: 4px; transition: width 1s;"></div>
         </div>
       </div>
 
-      <div class="two-col" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-        <button class="btn btn-primary" onclick="App.navigate('accounts')">Manage Accounts</button>
-        <button class="btn btn-secondary" onclick="App.navigate('transactions')">View Transactions</button>
-        <button class="btn btn-primary" onclick="App.navigate('advisor')">AI Advice</button>
-        <button class="btn btn-secondary" onclick="App.navigate('goals')">Set Goals</button>
+      <div class="quick-actions">
+        <button class="quick-action-btn" onclick="App.navigate('accounts')">💳 Accounts</button>
+        <button class="quick-action-btn" onclick="App.navigate('transactions')">💸 Add Transaction</button>
+        <button class="quick-action-btn" onclick="App.navigate('advisor')">🤖 AI Advice</button>
+        <button class="quick-action-btn" onclick="App.navigate('goals')">🎯 Goals</button>
+        <button class="quick-action-btn" onclick="App.navigate('budget')">📋 Budget</button>
+        <button class="quick-action-btn" onclick="App.navigate('portfolio')">📊 Portfolio</button>
       </div>
     `;
+
+    // Animate counters
+    requestAnimationFrame(() => {
+      document.querySelectorAll('.stat-value[data-target]').forEach(el => {
+        this.animateCounter(el, parseFloat(el.dataset.target));
+      });
+    });
+
+    // Render charts after DOM
+    setTimeout(() => {
+      this.renderNetWorthChart(document.getElementById('networth-chart'));
+      this.renderSpendingChart(document.getElementById('spending-chart'));
+      this.renderIncomeExpenseChart(document.getElementById('income-expense-chart'));
+    }, 100);
+  },
+
+  animateCounter(el, target) {
+    const duration = 1000;
+    const start = performance.now();
+    const step = (now) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = target * eased;
+      el.textContent = this.fmt(current);
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   },
 
   // ----- ACCOUNTS -----
@@ -306,6 +423,7 @@ const App = {
     const form = e.target;
     const fd = new FormData(form);
     const id = fd.get('id') || 'acc_' + Date.now();
+    const isNew = !fd.get('id');
     const account = {
       id,
       name: fd.get('name'),
@@ -316,12 +434,14 @@ const App = {
     Storage.saveAccount(account);
     this.closeModal();
     this.renderView();
+    this.showToast(isNew ? '➕' : '✏️', isNew ? 'Account added' : 'Account updated', 'success');
   },
 
   deleteAccount(id) {
     if (!confirm('Delete this account?')) return;
     Storage.deleteAccount(id);
     this.renderView();
+    this.showToast('🗑️', 'Account deleted', 'error');
   },
 
   // ----- TRANSACTIONS -----
@@ -424,6 +544,7 @@ const App = {
     const form = e.target;
     const fd = new FormData(form);
     const id = fd.get('id') || 'tx_' + Date.now();
+    const isNew = !fd.get('id');
     const tx = {
       id,
       date: fd.get('date'),
@@ -437,12 +558,14 @@ const App = {
     Storage.saveTransaction(tx);
     this.closeModal();
     this.renderView();
+    this.showToast(isNew ? '💸' : '✏️', isNew ? 'Transaction added' : 'Transaction updated', 'success');
   },
 
   deleteTransaction(id) {
     if (!confirm('Delete this transaction?')) return;
     Storage.deleteTransaction(id);
     this.renderView();
+    this.showToast('🗑️', 'Transaction deleted', 'error');
   },
 
   // ----- ADVISOR -----
@@ -631,15 +754,15 @@ const App = {
       if (status) {
         if (!available) {
           status.style.display = 'block';
-          status.style.background = '#fce8e6';
-          status.style.color = '#d93025';
-          status.textContent = '⚠️ AI server not connected. Using offline advisor mode. Start the server for real-time web search.';
+          status.className = 'server-status-bar offline';
+          status.innerHTML = '<span class="status-dot offline"></span> AI server not connected. Using offline advisor mode. <a href="#" onclick="App.launchServerHelp(event)" style="color: inherit; font-weight: 700; text-decoration: underline;">Run server?</a>';
         } else {
           status.style.display = 'block';
-          status.style.background = '#e6f4ea';
-          status.style.color = '#0f9d58';
-          status.textContent = '✅ AI server connected — real-time web search and full knowledge base active.';
-          setTimeout(() => { status.style.display = 'none'; }, 4000);
+          status.className = 'server-status-bar online';
+          status.innerHTML = '<span class="status-dot online"></span> AI server connected — real-time web search active.';
+          setTimeout(() => {
+            if (status) status.style.display = 'none';
+          }, 4000);
         }
       }
     });
@@ -714,7 +837,7 @@ const App = {
     if (!query) return;
     input.value = '';
     this.addChatMessage('user', query);
-    this.addChatMessage('bot', '🤔 Consulting AI Advisor...');
+    this.addChatMessage('bot', '<span style="display: inline-flex; align-items: center; gap: 0.5rem;"><span style="width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block;"></span> Consulting AI Advisor...</span>');
 
     this.getChatResponse(query).then(({ response, source }) => {
       const messages = document.getElementById('chat-messages');
@@ -728,7 +851,7 @@ const App = {
 
   quickChat(query) {
     this.addChatMessage('user', query);
-    this.addChatMessage('bot', '🤔 Consulting AI Advisor...');
+    this.addChatMessage('bot', '<span style="display: inline-flex; align-items: center; gap: 0.5rem;"><span style="width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block;"></span> Consulting AI Advisor...</span>');
 
     this.getChatResponse(query).then(({ response, source }) => {
       const messages = document.getElementById('chat-messages');
@@ -743,7 +866,7 @@ const App = {
   askAboutStock(ticker) {
     const query = `Tell me about ${ticker} stock`;
     this.addChatMessage('user', query);
-    this.addChatMessage('bot', '🤔 Consulting AI Advisor...');
+    this.addChatMessage('bot', '<span style="display: inline-flex; align-items: center; gap: 0.5rem;"><span style="width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block;"></span> Consulting AI Advisor...</span>');
 
     this.getChatResponse(query).then(({ response, source }) => {
       const messages = document.getElementById('chat-messages');
@@ -931,6 +1054,7 @@ const App = {
     const form = e.target;
     const fd = new FormData(form);
     const id = fd.get('id') || 'goal_' + Date.now();
+    const isNew = !fd.get('id');
     const goal = {
       id,
       name: fd.get('name'),
@@ -942,12 +1066,14 @@ const App = {
     Storage.saveGoal(goal);
     this.closeModal();
     this.renderView();
+    this.showToast(isNew ? '🎯' : '✏️', isNew ? 'Goal added' : 'Goal updated', 'success');
   },
 
   deleteGoal(id) {
     if (!confirm('Delete this goal?')) return;
     Storage.deleteGoal(id);
     this.renderView();
+    this.showToast('🗑️', 'Goal deleted', 'error');
   },
 
   // ----- BUDGET -----
@@ -1027,6 +1153,7 @@ const App = {
     const form = e.target;
     const fd = new FormData(form);
     const id = fd.get('id') || 'budget_' + Date.now();
+    const isNew = !fd.get('id');
     const budget = {
       id,
       category: fd.get('category'),
@@ -1036,24 +1163,27 @@ const App = {
     Storage.saveBudget(budget);
     this.closeModal();
     this.renderView();
+    this.showToast(isNew ? '📋' : '✏️', isNew ? 'Budget added' : 'Budget updated', 'success');
   },
 
   deleteBudget(id) {
     if (!confirm('Delete this budget category?')) return;
     Storage.deleteBudget(id);
     this.renderView();
+    this.showToast('🗑️', 'Budget deleted', 'error');
   },
 
   // ----- SETTINGS -----
   renderSettings(main) {
     const p = this.profile;
+    const isDark = this.getTheme() === 'dark';
 
     main.innerHTML = `
       <div class="view-header">
         <h2>Settings</h2>
       </div>
 
-      <div class="card" style="padding: 1rem; margin-bottom: 0.75rem;">
+      <div class="card">
         <strong style="display: block; margin-bottom: 0.75rem;">Profile</strong>
         <form id="settings-form" onsubmit="App.saveSettings(event)">
           <div class="form-group">
@@ -1086,7 +1216,21 @@ const App = {
         </form>
       </div>
 
-      <div class="card" style="padding: 1rem;">
+      <div class="card">
+        <strong style="display: block; margin-bottom: 0.75rem;">Appearance</strong>
+        <div class="flex flex-between">
+          <div>
+            <div style="font-weight: 500;">Dark Mode</div>
+            <div class="text-muted" style="font-size: 0.8rem;">Toggle between light and dark theme</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" ${isDark ? 'checked' : ''} onchange="App.toggleTheme()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
         <strong style="display: block; margin-bottom: 0.5rem;">Data Management</strong>
         <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 0.75rem;">Clear all data and start fresh. This cannot be undone.</p>
         <button class="btn btn-danger btn-block" onclick="App.resetAllData()">Reset All Data</button>
@@ -1105,6 +1249,8 @@ const App = {
     this.profile.monthlyIncome = parseFloat(fd.get('monthlyIncome')) || 0;
     Storage.saveProfile(this.profile);
     this.renderView();
+    this.renderNav();
+    this.showToast('✅', 'Settings saved', 'success');
   },
 
   resetAllData() {
@@ -1116,6 +1262,193 @@ const App = {
     this.currentView = 'dashboard';
     this.renderView();
     window.location.hash = '';
+  },
+
+  // ----- SVG CHARTS -----
+  renderNetWorthChart(container) {
+    if (!container) return;
+    const history = Storage.getNetWorthHistory() || [];
+    if (history.length < 2) { container.innerHTML = '<p class="text-muted" style="padding: 1rem 0; text-align: center;">Need more snapshots for a chart</p>'; return; }
+
+    const data = history.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+    const w = 600;
+    const h = 200;
+    const pad = { top: 20, right: 20, bottom: 30, left: 60 };
+    const iw = w - pad.left - pad.right;
+    const ih = h - pad.top - pad.bottom;
+
+    const values = data.map(d => d.value);
+    const min = Math.min(...values) * 0.95;
+    const max = Math.max(...values) * 1.05;
+    const range = max - min || 1;
+
+    const xScale = (i) => (i / (data.length - 1)) * iw;
+    const yScale = (v) => ih - ((v - min) / range) * ih;
+
+    const points = data.map((d, i) => `${xScale(i)},${yScale(d.value)}`).join(' ');
+    const path = data.map((d, i) => `${i === 0 ? 'M' : 'L'}${xScale(i)} ${yScale(d.value)}`).join(' ');
+    const areaPath = `${path} L${xScale(data.length - 1)} ${ih} L${xScale(0)} ${ih} Z`;
+
+    const labels = data.map((d, i) => {
+      const date = new Date(d.date);
+      return i % Math.ceil(data.length / 4) === 0 || i === data.length - 1
+        ? `<text x="${xScale(i)}" y="${h - pad.bottom + 18}" text-anchor="middle" fill="var(--text-muted)" font-size="10" font-family="var(--font)">${date.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}</text>`
+        : '';
+    }).join('');
+
+    const gridLines = [0, 0.25, 0.5, 0.75, 1].map(p => {
+      const y = pad.top + ih * (1 - p);
+      return `<line x1="${pad.left}" y1="${y}" x2="${w - pad.right}" y2="${y}" class="chart-grid"/>`;
+    }).join('');
+
+    const yLabels = [0, 0.25, 0.5, 0.75, 1].map(p => {
+      const val = min + range * p;
+      const y = pad.top + ih * (1 - p);
+      return `<text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" fill="var(--text-muted)" font-size="10" font-family="var(--font)">R${(val / 1000).toFixed(0)}k</text>`;
+    }).join('');
+
+    const dots = data.map((d, i) => {
+      const isLast = i === data.length - 1;
+      return `<circle cx="${xScale(i)}" cy="${yScale(d.value)}" r="${isLast ? 5 : 3}" class="chart-dot"
+        onmouseenter="this.setAttribute('r', '6')" onmouseleave="this.setAttribute('r', '${isLast ? 5 : 3}')"
+        title="${new Date(d.date).toLocaleDateString('en-ZA')}: ${this.fmt(d.value)}"/>`;
+    }).join('');
+
+    container.innerHTML = `
+      <svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--primary)" stop-opacity="0.3"/>
+            <stop offset="100%" stop-color="var(--primary)" stop-opacity="0.02"/>
+          </linearGradient>
+        </defs>
+        <g transform="translate(${pad.left}, ${pad.top})">
+          ${gridLines}
+        </g>
+        <g font-family="var(--font)">
+          ${yLabels}
+          ${labels}
+        </g>
+        <path d="${areaPath}" class="chart-area" style="fill: url(#areaGradient);"/>
+        <path d="${path}" class="chart-line"/>
+        ${dots}
+      </svg>
+    `;
+  },
+
+  renderSpendingChart(container) {
+    if (!container) return;
+    const transactions = Storage.getTransactions();
+    const cats = {};
+    transactions.filter(t => t.type === 'expense').forEach(t => {
+      cats[t.category] = (cats[t.category] || 0) + t.amount;
+    });
+    const entries = Object.entries(cats).sort((a, b) => b[1] - a[1]);
+    if (entries.length === 0) { container.innerHTML = '<p class="text-muted" style="padding: 1rem 0; text-align: center;">No expense data</p>'; return; }
+
+    const total = entries.reduce((s, [, v]) => s + v, 0);
+    const colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'];
+    const r = 70;
+    const cx = 100;
+    const cy = 100;
+    const circumference = 2 * Math.PI * r;
+
+    let cumulative = 0;
+    const segments = entries.slice(0, 6).map(([cat, val], i) => {
+      const pct = val / total;
+      const offset = circumference * (1 - cumulative - pct);
+      const dashArray = circumference * pct;
+      cumulative += pct;
+      const color = colors[i % colors.length];
+      return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="20"
+        stroke-dasharray="${dashArray} ${circumference - dashArray}"
+        stroke-dashoffset="${-circumference * (1 - cumulative + pct)}"
+        transform="rotate(-90 ${cx} ${cy})" stroke-linecap="butt"
+        class="donut-segment"/>`;
+    }).join('');
+
+    const legend = entries.slice(0, 6).map(([cat, val], i) => {
+      const pct = ((val / total) * 100).toFixed(1);
+      return `<div class="legend-item"><div class="legend-color" style="background:${colors[i % colors.length]}"></div>${cat} (${pct}%)</div>`;
+    }).join('');
+    const remaining = entries.length > 6 ? `<div class="legend-item" style="color: var(--text-muted);">+${entries.length - 6} more</div>` : '';
+
+    container.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+          ${segments}
+          <text x="${cx}" y="${cy - 6}" text-anchor="middle" font-size="22" font-weight="800" fill="var(--text)">${this.fmt(total)}</text>
+          <text x="${cx}" y="${cy + 14}" text-anchor="middle" font-size="11" fill="var(--text-muted)">Total spent</text>
+        </svg>
+        <div class="chart-legend">${legend}${remaining}</div>
+      </div>
+    `;
+  },
+
+  renderIncomeExpenseChart(container) {
+    if (!container) return;
+    const transactions = Storage.getTransactions();
+    const months = {};
+    transactions.forEach(t => {
+      const m = t.date ? t.date.substring(0, 7) : '';
+      if (!m) return;
+      if (!months[m]) months[m] = { income: 0, expense: 0 };
+      months[m][t.type] += t.amount;
+    });
+    const entries = Object.entries(months).sort();
+    if (entries.length === 0) { container.innerHTML = '<p class="text-muted" style="padding: 1rem 0; text-align: center;">No monthly data yet</p>'; return; }
+
+    const w = 500;
+    const h = 180;
+    const pad = { top: 15, right: 15, bottom: 25, left: 50 };
+    const iw = w - pad.left - pad.right;
+    const ih = h - pad.top - pad.bottom;
+
+    const allVals = entries.flatMap(([, d]) => [d.income, d.expense]);
+    const maxVal = Math.max(...allVals) * 1.15 || 1;
+    const barW = Math.min(iw / entries.length * 0.35, 24);
+    const gap = iw / entries.length;
+
+    const bars = entries.map(([month, d], i) => {
+      const x = pad.left + i * gap + (gap - barW * 2) / 2;
+      const incomeH = (d.income / maxVal) * ih;
+      const expenseH = (d.expense / maxVal) * ih;
+      const label = (() => {
+        const [y, m] = month.split('-');
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return `${months[parseInt(m) - 1]}`;
+      })();
+      return `
+        <rect x="${x}" y="${pad.top + ih - incomeH}" width="${barW}" height="${incomeH}" rx="3" class="bar-rect" fill="var(--success)"
+          title="Income: ${this.fmt(d.income)}"/>
+        <rect x="${x + barW + 2}" y="${pad.top + ih - expenseH}" width="${barW}" height="${expenseH}" rx="3" class="bar-rect" fill="var(--danger)"
+          title="Expenses: ${this.fmt(d.expense)}"/>
+        <text x="${pad.left + i * gap + gap / 2}" y="${h - pad.bottom + 16}" text-anchor="middle" fill="var(--text-muted)" font-size="9" font-family="var(--font)">${label}</text>
+      `;
+    }).join('');
+
+    const yGrid = [0, 0.25, 0.5, 0.75, 1].map(p => {
+      const y = pad.top + ih * (1 - p);
+      return `<line x1="${pad.left}" y1="${y}" x2="${w - pad.right}" y2="${y}" class="chart-grid"/>`;
+    }).join('');
+
+    const yLabels = [0, 0.25, 0.5, 0.75, 1].map(p => {
+      const val = maxVal * p;
+      const y = pad.top + ih * (1 - p);
+      return `<text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" fill="var(--text-muted)" font-size="9" font-family="var(--font)">R${(val / 1000).toFixed(0)}k</text>`;
+    }).join('');
+
+    container.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+        <div class="legend-item"><div class="legend-color" style="background:var(--success)"></div>Income</div>
+        <div class="legend-item"><div class="legend-color" style="background:var(--danger)"></div>Expenses</div>
+      </div>
+      <svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+        ${yGrid}
+        ${yLabels}
+        ${bars}
+      </svg>
+    `;
   },
 
   // ----- MORE (SUB-NAV) -----
@@ -1169,6 +1502,21 @@ const App = {
 
   getHoldings() {
     return Storage.get('holdings') || [];
+  },
+
+  launchServerHelp(e) {
+    if (e) e.preventDefault();
+    this.showModal(`
+      <h3>🚀 Launch AI Server</h3>
+      <p class="text-muted" style="margin-bottom: 1rem;">The WealthWise AI server provides real-time web search, stock prices, crypto data, and financial news.</p>
+      <div style="background: var(--bg); border-radius: var(--radius-xs); padding: 1rem; margin-bottom: 1rem; font-family: monospace; font-size: 0.85rem;">
+        <strong>Step 1:</strong> Open PowerShell or CMD<br>
+        <strong>Step 2:</strong> Run:<br>
+        <code style="display: block; background: var(--border); padding: 0.5rem; border-radius: 4px; margin: 0.5rem 0;">cd "${SERVER_URL.replace('http://localhost:3456', '').replace('/api', '') || '.'}/server<br>node server.js</code>
+        <strong>Step 3:</strong> Refresh this page after the server starts
+      </div>
+      <button class="btn btn-primary btn-block" onclick="App.closeModal(); App.checkServer().then(a => { if(a) location.reload(); else App.showToast('⚠️', 'Server not detected. Make sure it is running on port 3456', 'warning'); })">Check Again</button>
+    `);
   },
 
   showModal(html) {

@@ -57,10 +57,12 @@ function formatResponse(userQuery, knowledgeResults, webResults, userData) {
   let response = '';
   let usedKnowledge = false;
   let usedWeb = false;
+  const sourcesUsed = [];
 
   // 1. Use knowledge base results
   if (knowledgeResults.length > 0) {
     usedKnowledge = true;
+    sourcesUsed.push('WealthWise Knowledge Base');
     const section = knowledgeResults[0].section;
     const content = knowledgeResults.map(k => k.content).filter(Boolean).join('\n\n');
 
@@ -235,8 +237,14 @@ function formatResponse(userQuery, knowledgeResults, webResults, userData) {
   if (webResults.length > 0) {
     usedWeb = true;
     const stockPrices = webResults.filter(r => r.type === 'stock_price');
+    const cryptoItems = webResults.filter(r => r.type === 'crypto');
     const newsItems = webResults.filter(r => r.type === 'news');
+    const econIndicators = webResults.filter(r => r.type === 'economic_indicator');
+    const tickerSearches = webResults.filter(r => r.type === 'ticker_search');
     const fg = webResults.find(r => r.type === 'fear_greed');
+
+    // Track which sources returned data
+    webResults.forEach(r => { if (r.source) sourcesUsed.push(r.source); });
 
     if (stockPrices.length > 0 && (q.includes('price') || q.includes('ticker') || q.includes('stock') || q.includes('share') || stockPrices.some(s => q.includes(s.ticker?.toLowerCase())) || q.includes('market'))) {
       response += (response ? '\n\n' : '') + `📊 **Real-Time Market Data**\n`;
@@ -248,10 +256,53 @@ function formatResponse(userQuery, knowledgeResults, webResults, userData) {
       });
     }
 
-    if (newsItems.length > 0 && (q.includes('news') || q.includes('market') || q.includes('current') || q.includes('latest'))) {
+    if (cryptoItems.length > 0) {
+      response += (response ? '\n\n' : '') + `₿ **Cryptocurrency Data**\n`;
+      cryptoItems.forEach(c => {
+        const emoji = (c.priceChange24h || 0) >= 0 ? '🟢' : '🔴';
+        response += `\n${emoji} **${c.name}** (${c.symbol}): $${c.price?.toLocaleString() || 'N/A'}`;
+        if (c.priceChange24h != null) response += `\n   24h: ${c.priceChange24h >= 0 ? '+' : ''}${c.priceChange24h?.toFixed(2)}% | 7d: ${c.priceChange7d >= 0 ? '+' : ''}${c.priceChange7d?.toFixed(2)}%`;
+        if (c.marketCap) response += `\n   Market Cap: $${(c.marketCap / 1e9).toFixed(2)}B | Vol 24h: $${(c.volume24h / 1e9).toFixed(2)}B`;
+        if (c.ath) response += `\n   All-Time High: $${c.ath?.toLocaleString()} (${new Date(c.athDate).toLocaleDateString()})`;
+        if (c.description) response += `\n   ${c.description.substring(0, 200)}...`;
+      });
+      response += `\n\n📌 Data from CoinGecko — free, real-time crypto market data`;
+    }
+
+    if (econIndicators.length > 0) {
+      response += (response ? '\n\n' : '') + `🌐 **Economic Indicators (World Bank)**\n`;
+      econIndicators.forEach(e => {
+        const fmtVal = typeof e.value === 'number' ? e.value.toLocaleString() : e.value;
+        response += `\n• **${e.indicator}** (${e.country}, ${e.year}): ${fmtVal}`;
+      });
+      response += `\n\n📌 Data from World Bank API — free public economic data`;
+    }
+
+    if (tickerSearches.length > 0 && !stockPrices.length) {
+      response += (response ? '\n\n' : '') + `🔍 **Financial Instruments Found**\n`;
+      tickerSearches.forEach(t => {
+        response += `\n• **${t.ticker}** — ${t.name} (${t.exchange})`;
+        if (t.sector) response += ` — ${t.sector}`;
+      });
+      response += `\n\n💡 Ask for price details on any ticker for real-time quotes`;
+    }
+
+    if (newsItems.length > 0 && (q.includes('news') || q.includes('market') || q.includes('current') || q.includes('latest') || q.includes('today') || q.includes('headline'))) {
       response += (response ? '\n\n' : '') + `📰 **Latest Financial News**\n`;
-      newsItems.slice(0, 4).forEach(n => {
-        response += `\n• ${n.title}`;
+      const uniqueNews = [];
+      const seenTitles = new Set();
+      newsItems.forEach(n => {
+        const key = n.title?.toLowerCase()?.trim();
+        if (key && !seenTitles.has(key)) {
+          seenTitles.add(key);
+          uniqueNews.push(n);
+        }
+      });
+      uniqueNews.slice(0, 5).forEach(n => {
+        response += `\n• **${n.title}** (${n.source})`;
+        if (n.snippet && n.snippet !== n.title) {
+          response += `\n  ${n.snippet.substring(0, 120)}${n.snippet.length > 120 ? '...' : ''}`;
+        }
       });
     }
 
@@ -284,7 +335,7 @@ function formatResponse(userQuery, knowledgeResults, webResults, userData) {
     response += `Try asking with more detail like "Tell me about SA tax brackets" or "How much life insurance do I need?"`;
   }
 
-  response += `\n\n_🤖 Powered by WealthWise AI · Data sourced from knowledge base and public web_`;
+  response += `\n\n_🤖 WealthWise AI · Sources: ${sourcesUsed.length > 0 ? [...new Set(sourcesUsed)].join(', ') : 'Knowledge Base & Public Web'}_`;
 
   return response;
 }

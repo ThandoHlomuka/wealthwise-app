@@ -448,9 +448,12 @@ const App = {
     const accounts = Storage.getAccounts();
     const transactions = Storage.getTransactions();
     const advise = AIAdvisor.getAdvice(this.profile, accounts, transactions);
-    const recommendations = AIAdvisor.getRecommendations(this.profile, accounts, transactions);
     const marketData = AIAdvisor.getMarketInsights();
+    const stockPicks = MarketData.getStockPicks();
+    const opportunities = MarketData.getMatchingOpportunities(this.profile);
     const netWorth = AIAdvisor.calcNetWorth(accounts);
+    const summary = MarketData.getMarketSummary();
+    const movers = MarketData.getTopMovers();
 
     let score = 65;
     let insights = [];
@@ -463,11 +466,15 @@ const App = {
     const circumference = 2 * Math.PI * 54;
     const offset = circumference - (score / 100) * circumference;
 
+    const buyPicks = stockPicks.filter(p => p.recommendation === 'Buy').slice(0, 4);
+    const marketNews = marketData && marketData.news ? marketData.news.slice(0, 3) : [];
+
     main.innerHTML = `
       <div class="view-header">
         <h2>AI Advisor</h2>
       </div>
 
+      <!-- Score Card -->
       <div class="card" style="padding: 1.5rem; text-align: center; margin-bottom: 0.75rem;">
         <svg width="140" height="140" viewBox="0 0 120 120">
           <circle cx="60" cy="60" r="54" fill="none" stroke="#e5e7eb" stroke-width="10"/>
@@ -478,57 +485,207 @@ const App = {
           <text x="60" y="72" text-anchor="middle" font-size="12" fill="#6b7280">/ 100</text>
         </svg>
         <h3 style="margin-top: 0.5rem;">Financial Health Score</h3>
-        
       </div>
 
-      ${insights.length > 0 ? `
-        <div class="card" style="padding: 1rem; margin-bottom: 0.75rem;">
-          <strong>AI Insights</strong>
-          ${insights.map(a => `
-            <div class="insight-card" style="padding: 0.6rem 0; border-bottom: 1px solid #f3f4f6;">
-              <div class="insight-header flex flex-between">
-                <span>${a.icon || '💡'} ${a.title || 'Insight'}</span>
+      <!-- Market Pulse -->
+      <div class="card" style="padding: 1rem; margin-bottom: 0.75rem;">
+        <div class="flex flex-between" style="margin-bottom: 0.5rem;">
+          <strong>📊 Market Pulse</strong>
+          <span class="badge badge-info">${summary.advancers} A · ${summary.decliners} D</span>
+        </div>
+        <div class="two-col" style="gap: 0.5rem;">
+          <div style="background: #e6f4ea; border-radius: 8px; padding: 0.6rem; text-align: center;">
+            <div style="font-size: 0.7rem; color: #666;">Top Gainer</div>
+            <div style="font-weight: 700; color: #0f9d58;">${movers.gainers[0] ? movers.gainers[0].ticker : 'N/A'}</div>
+            <div style="font-size: 0.75rem; color: #0f9d58;">+${movers.gainers[0] ? movers.gainers[0].changePercent.toFixed(2) : 0}%</div>
+          </div>
+          <div style="background: #fce8e6; border-radius: 8px; padding: 0.6rem; text-align: center;">
+            <div style="font-size: 0.7rem; color: #666;">Top Loser</div>
+            <div style="font-weight: 700; color: #d93025;">${movers.losers[0] ? movers.losers[0].ticker : 'N/A'}</div>
+            <div style="font-size: 0.75rem; color: #d93025;">${movers.losers[0] ? movers.losers[0].changePercent.toFixed(2) : 0}%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stock Picks -->
+      ${buyPicks.length > 0 ? `
+      <div class="card" style="padding: 1rem; margin-bottom: 0.75rem;">
+        <strong style="display: block; margin-bottom: 0.5rem;">📈 Analyst Top Picks</strong>
+        <div class="stock-picks-grid">
+          ${buyPicks.map(p => {
+            const upside = p.targetPrice ? (((p.targetPrice - p.price) / p.price) * 100).toFixed(1) : 'N/A';
+            return `
+            <div class="stock-pick-card" onclick="App.askAboutStock('${p.ticker}')">
+              <div class="sp-header">
+                <strong>${p.ticker}</strong>
+                <span class="badge badge-success">${p.analystRating}</span>
               </div>
-              <p style="font-size: 0.85rem; color: #6b7280; margin: 0.25rem 0 0;">${a.message || ''}</p>
+              <div style="font-size: 0.7rem; color: #666;">${p.symbol}</div>
+              <div style="font-weight: 700; margin: 0.25rem 0;">R${p.price.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</div>
+              <div style="font-size: 0.7rem; color: #0f9d58;">Target: ${p.targetPrice ? 'R' + p.targetPrice.toLocaleString() : 'N/A'} (${upside}% upside)</div>
+              <div style="font-size: 0.65rem; color: #999; margin-top: 0.2rem;">${p.sector}</div>
             </div>
-          `).join('')}
+          `}).join('')}
         </div>
-      ` : ''}
+        <div style="font-size: 0.7rem; color: #999; margin-top: 0.5rem;">💡 Click a pick to ask the chatbot about it</div>
+      </div>` : ''}
 
-      ${recommendations && recommendations.length > 0 ? `
-        <div class="card" style="padding: 1rem; margin-bottom: 0.75rem;">
-          <strong>Recommendations</strong>
-          ${recommendations.map(r => `
-            <div style="padding: 0.5rem 0; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem;">
-              📌 <strong>${r.title || ''}</strong>
-              ${r.allocation ? `<div style="font-size: 0.8rem; color: #6b7280;">Expected: ${r.expectedReturn || ''} · Risk: ${r.risk || ''}</div>` : ''}
-              ${r.amount ? `<div style="font-size: 0.8rem; color: #6b7280;">Target: ${this.fmt(r.amount)} · Current: ${this.fmt(r.current || 0)}</div>` : ''}
+      <!-- Opportunities -->
+      ${opportunities.length > 0 ? `
+      <div class="card" style="padding: 1rem; margin-bottom: 0.75rem;">
+        <strong style="display: block; margin-bottom: 0.5rem;">💎 Opportunities for You</strong>
+        ${opportunities.slice(0, 3).map(o => `
+          <div class="opp-card" style="padding: 0.6rem 0; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; gap: 0.75rem;">
+            <span style="font-size: 1.5rem;">${o.icon}</span>
+            <div style="flex: 1;">
+              <div style="font-weight: 600; font-size: 0.85rem;">${o.title}</div>
+              <div style="font-size: 0.75rem; color: #666;">${o.expectedReturn} · ${o.risk} · Min R${o.minInvestment.toLocaleString()}</div>
             </div>
-          `).join('')}
+            <span class="badge badge-primary" style="font-size: 0.65rem;">${o.matchScore}% match</span>
+          </div>
+        `).join('')}
+        <div style="margin-top: 0.5rem;">
+          <button class="btn btn-xs btn-outline" onclick="App.scrollToChat(); App.quickChat('What investment opportunities match my profile?')" style="width: 100%;">Ask about opportunities →</button>
         </div>
-      ` : ''}
+      </div>` : ''}
 
-      ${marketData && marketData.markets && marketData.markets.length > 0 ? `
-        <div class="card" style="padding: 1rem; margin-bottom: 0.75rem;">
-          <strong>Market Insights</strong>
-          ${marketData.markets.map(m => `
-            <div class="market-row flex flex-between" style="padding: 0.5rem 0; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem;">
-              <span>📊 ${m.name || m.symbol || ''}</span>
-              <span class="${(m.change || 0) >= 0 ? 'text-success' : 'text-danger'}" style="font-weight: 600;">
-                ${(m.change || 0) >= 0 ? '+' : ''}${(m.changePercent || m.change || 0)}%
-              </span>
+      <!-- AI Insights -->
+      <div class="card" style="padding: 1rem; margin-bottom: 0.75rem;">
+        <div class="card-header">
+          <strong>💡 AI Insights</strong>
+        </div>
+        <div style="font-size: 0.8rem; color: #666; margin-bottom: 0.5rem;">${insights.length} insights · Score ${score}/100</div>
+        ${insights.slice(0, 4).map(a => `
+          <div class="insight-card ${a.type}" style="margin-bottom: 0.4rem;">
+            <div class="insight-header">
+              <span class="insight-icon">${a.icon || '💡'}</span>
+              <span class="insight-title">${a.title || 'Insight'}</span>
             </div>
-          `).join('')}
-        </div>
-      ` : ''}
+            <div class="insight-message">${a.message || ''}</div>
+          </div>
+        `).join('')}
+      </div>
 
-      <div class="card" style="padding: 1rem;">
+      <!-- Market News -->
+      ${marketNews.length > 0 ? `
+      <div class="card" style="padding: 1rem; margin-bottom: 0.75rem;">
+        <strong style="display: block; margin-bottom: 0.5rem;">📰 Market News</strong>
+        ${marketNews.map(n => `
+          <div style="padding: 0.4rem 0; border-bottom: 1px solid #f3f4f6; font-size: 0.82rem;">
+            <span>${n.sentiment === 'positive' ? '🟢' : n.sentiment === 'negative' ? '🔴' : '🟡'}</span>
+            <span>${n.text}</span>
+            <div style="font-size: 0.7rem; color: #999;">${n.source} · ${n.time}</div>
+          </div>
+        `).join('')}
+      </div>` : ''}
+
+      <!-- Net Worth -->
+      <div class="card" style="padding: 1rem; margin-bottom: 0.75rem;">
         <div class="flex flex-between">
           <strong>Net Worth</strong>
           <span style="font-weight: 700; font-size: 1.1rem;">${this.fmt(netWorth)}</span>
         </div>
       </div>
+
+      <!-- Chatbot Section -->
+      <div class="card chat-card" style="padding: 0; overflow: hidden; margin-bottom: 0.75rem;">
+        <div class="chat-header" style="padding: 0.75rem 1rem; background: var(--primary); color: white; display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.2rem;">🤖</span>
+          <span style="font-weight: 600;">Ask Your Financial Advisor</span>
+        </div>
+        <div class="chat-messages" id="chat-messages" style="height: 300px; overflow-y: auto; padding: 0.75rem; background: #fafafa;">
+          <div class="chat-msg chat-msg-bot">
+            <div class="chat-msg-content">
+              👋 Hi ${this.profile.name || 'there'}! I'm your AI financial advisor. Ask me anything about your finances — try one of these:
+              <div style="margin-top: 0.4rem; display: flex; flex-wrap: wrap; gap: 0.3rem;">
+                <span class="chat-quick-btn" onclick="App.quickChat('How are my investments?')">📊 Investments</span>
+                <span class="chat-quick-btn" onclick="App.quickChat('Where is my money going?')">💸 Spending</span>
+                <span class="chat-quick-btn" onclick="App.quickChat('What stocks should I buy?')">📈 Stock picks</span>
+                <span class="chat-quick-btn" onclick="App.quickChat('Do I have enough emergency savings?')">🛡️ Emergency</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="chat-input-bar" style="display: flex; border-top: 1px solid #e0e3e7; padding: 0.5rem;">
+          <input type="text" id="chat-input" class="chat-input" placeholder="Ask anything about your finances..."
+            style="flex: 1; border: none; padding: 0.6rem 0.75rem; font-size: 0.9rem; outline: none; border-radius: 8px; background: #f0f4f8;"
+            onkeydown="if(event.key==='Enter') App.sendChat()">
+          <button class="btn btn-primary btn-sm" onclick="App.sendChat()" style="margin-left: 0.5rem;">Send</button>
+        </div>
+      </div>
     `;
+  },
+
+  scrollToChat() {
+    const chat = document.getElementById('chat-messages');
+    if (chat) chat.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  },
+
+  sendChat() {
+    const input = document.getElementById('chat-input');
+    if (!input) return;
+    const query = input.value.trim();
+    if (!query) return;
+    input.value = '';
+    this.addChatMessage('user', query);
+    this.addChatMessage('bot', '🤔 Thinking...');
+
+    setTimeout(() => {
+      const messages = document.getElementById('chat-messages');
+      if (messages) messages.removeChild(messages.lastChild);
+
+      const accounts = Storage.getAccounts();
+      const transactions = Storage.getTransactions();
+      const goals = Storage.getGoals();
+      const response = AIAdvisor.askChatbot(query, this.profile, accounts, transactions, goals);
+      this.addChatMessage('bot', response);
+    }, 600);
+  },
+
+  quickChat(query) {
+    this.addChatMessage('user', query);
+    this.addChatMessage('bot', '🤔 Thinking...');
+
+    setTimeout(() => {
+      const messages = document.getElementById('chat-messages');
+      if (messages) messages.removeChild(messages.lastChild);
+
+      const accounts = Storage.getAccounts();
+      const transactions = Storage.getTransactions();
+      const goals = Storage.getGoals();
+      const response = AIAdvisor.askChatbot(query, this.profile, accounts, transactions, goals);
+      this.addChatMessage('bot', response);
+    }, 600);
+  },
+
+  askAboutStock(ticker) {
+    const query = `Tell me about ${ticker} stock`;
+    this.addChatMessage('user', query);
+    this.addChatMessage('bot', '🤔 Thinking...');
+
+    setTimeout(() => {
+      const messages = document.getElementById('chat-messages');
+      if (messages) messages.removeChild(messages.lastChild);
+
+      const accounts = Storage.getAccounts();
+      const transactions = Storage.getTransactions();
+      const goals = Storage.getGoals();
+      const response = AIAdvisor.askChatbot(query, this.profile, accounts, transactions, goals);
+      this.addChatMessage('bot', response);
+    }, 600);
+  },
+
+  addChatMessage(type, text) {
+    const container = document.getElementById('chat-messages');
+    if (!container) return;
+    const div = document.createElement('div');
+    div.className = `chat-msg chat-msg-${type}`;
+    const content = document.createElement('div');
+    content.className = 'chat-msg-content';
+    content.innerHTML = text.replace(/\n/g, '<br>');
+    div.appendChild(content);
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
   },
 
   // ----- PORTFOLIO -----

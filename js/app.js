@@ -255,12 +255,31 @@ const App = {
           transactions.filter(t => t.type === 'expense').forEach(t => {
             cats[t.category] = (cats[t.category] || 0) + t.amount;
           });
-          const entries = Object.entries(cats).sort((a, b) => b[1] - a[1]).slice(0, 5);
+          const entries = Object.entries(cats).sort((a, b) => b[1] - a[1]).slice(0, 6);
           if (entries.length === 0) return '';
+          const catTotal = entries.reduce((s, [, v]) => s + v, 0);
+          const catColors = ['#7c3aed', '#059669', '#d97706', '#dc2626', '#2563eb', '#db2777'];
           return `
             <div class="card">
-              <strong style="display: block; margin-bottom: 0.75rem;">📊 Spending by Category</strong>
-              <div class="chart-container" id="spending-chart"></div>
+              <div class="flex flex-between" style="margin-bottom: 0.6rem;">
+                <strong>📊 Top Spending</strong>
+                <span class="text-muted" style="font-size: 0.72rem;">${this.fmt(catTotal)} total</span>
+              </div>
+              ${entries.map(([cat, val], i) => {
+                const pct = (val / catTotal) * 100;
+                const barW = Math.max(pct, 2);
+                return `
+                  <div style="margin-bottom: 0.5rem;">
+                    <div class="flex flex-between" style="font-size: 0.78rem; margin-bottom: 0.2rem;">
+                      <span style="font-weight: 500;">${cat}</span>
+                      <span style="font-weight: 600;">${this.fmt(val)} <span class="text-muted" style="font-weight: 400; font-size: 0.7rem;">${pct.toFixed(1)}%</span></span>
+                    </div>
+                    <div style="height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;">
+                      <div style="width: ${barW}%; height: 100%; background: ${catColors[i % catColors.length]}; border-radius: 3px; transition: width 0.8s;"></div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
             </div>
           `;
         })()}
@@ -297,13 +316,15 @@ const App = {
         </div>
       </div>
 
-      <div class="quick-actions">
-        <button class="quick-action-btn" onclick="App.navigate('accounts')">💳 Accounts</button>
-        <button class="quick-action-btn" onclick="App.navigate('transactions')">💸 Add Transaction</button>
-        <button class="quick-action-btn" onclick="App.navigate('advisor')">🤖 AI Advice</button>
-        <button class="quick-action-btn" onclick="App.navigate('goals')">🎯 Goals</button>
-        <button class="quick-action-btn" onclick="App.navigate('budget')">📋 Budget</button>
-        <button class="quick-action-btn" onclick="App.navigate('portfolio')">📊 Portfolio</button>
+      <div class="card" style="padding: 0.75rem 1rem;">
+        <div class="quick-actions">
+          <button class="quick-action-btn" onclick="App.navigate('accounts')">💳 Accounts</button>
+          <button class="quick-action-btn" onclick="App.navigate('transactions')">💸 Add Transaction</button>
+          <button class="quick-action-btn" onclick="App.navigate('advisor')">🤖 AI Advice</button>
+          <button class="quick-action-btn" onclick="App.navigate('goals')">🎯 Goals</button>
+          <button class="quick-action-btn" onclick="App.navigate('budget')">📋 Budget</button>
+          <button class="quick-action-btn" onclick="App.navigate('portfolio')">📊 Portfolio</button>
+        </div>
       </div>
     `;
 
@@ -317,7 +338,6 @@ const App = {
     // Render charts after DOM
     setTimeout(() => {
       this.renderNetWorthChart(document.getElementById('networth-chart'));
-      this.renderSpendingChart(document.getElementById('spending-chart'));
       this.renderIncomeExpenseChart(document.getElementById('income-expense-chart'));
     }, 100);
   },
@@ -1364,60 +1384,28 @@ const App = {
     transactions.filter(t => t.type === 'expense').forEach(t => {
       cats[t.category] = (cats[t.category] || 0) + t.amount;
     });
-    const entries = Object.entries(cats).sort((a, b) => b[1] - a[1]);
+    const entries = Object.entries(cats).sort((a, b) => b[1] - a[1]).slice(0, 6);
     if (entries.length === 0) { return; }
 
     const total = entries.reduce((s, [, v]) => s + v, 0);
-    const colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'];
-    const r = 80;
-    const hole = 50;
-    const cx = 120;
-    const cy = 120;
-
-    const visible = entries.slice(0, 6);
-    let cumulativePct = 0;
-
-    // Each segment: pie slice from center to outer arc (clockwise)
-    const segments = visible.map(([cat, val], i) => {
-      const pct = val / total;
-      const startAng = cumulativePct * 360 - 90;
-      const endAng = (cumulativePct + pct) * 360 - 90;
-      cumulativePct += pct;
-
-      const sr = startAng * Math.PI / 180;
-      const er = endAng * Math.PI / 180;
-
-      const ox = cx + r * Math.cos(sr);
-      const oy = cy + r * Math.sin(sr);
-      const ox2 = cx + r * Math.cos(er);
-      const oy2 = cy + r * Math.sin(er);
-
-      const large = pct > 0.5 ? 1 : 0;
-      const color = colors[i % colors.length];
-
-      // Simple pie slice: center → outer start → arc to outer end → back to center
-      const d = `M ${cx} ${cy} L ${ox} ${oy} A ${r} ${r} 0 ${large} 1 ${ox2} ${oy2} Z`;
-
-      return `<path d="${d}" fill="${color}" class="donut-segment"/>`;
-    }).join('');
-
-    const legend = visible.map(([cat, val], i) => {
-      const pct = ((val / total) * 100).toFixed(1);
-      return `<div class="legend-item"><div class="legend-color" style="background:${colors[i % colors.length]}"></div>${cat} (${pct}%)</div>`;
-    }).join('');
-    const remaining = entries.length > 6 ? `<div class="legend-item" style="color: var(--text-muted);">+${entries.length - 6} more</div>` : '';
+    const colors = ['#7c3aed', '#059669', '#d97706', '#dc2626', '#2563eb', '#db2777'];
 
     container.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; justify-content: center;">
-        <div style="flex-shrink: 0; width: 180px; height: 180px;">
-          <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
-            ${segments}
-            <circle cx="${cx}" cy="${cy}" r="${hole}" fill="var(--bg-card)"/>
-            <text x="${cx}" y="${cy - 6}" text-anchor="middle" font-size="24" font-weight="800" fill="var(--text)">${this.fmt(total)}</text>
-            <text x="${cx}" y="${cy + 14}" text-anchor="middle" font-size="12" fill="var(--text-muted)">Total spent</text>
-          </svg>
-        </div>
-        <div class="chart-legend">${legend}${remaining}</div>
+      <div style="padding: 0.25rem 0;">
+        ${entries.map(([cat, val], i) => {
+          const pct = (val / total) * 100;
+          return `
+            <div style="margin-bottom: 0.5rem;">
+              <div class="flex flex-between" style="font-size: 0.78rem; margin-bottom: 0.2rem;">
+                <span style="font-weight: 500;">${cat}</span>
+                <span style="font-weight: 600;">${this.fmt(val)} <span class="text-muted" style="font-weight: 400; font-size: 0.7rem;">${pct.toFixed(1)}%</span></span>
+              </div>
+              <div style="height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;">
+                <div style="width: ${Math.max(pct, 2)}%; height: 100%; background: ${colors[i % colors.length]}; border-radius: 3px; transition: width 0.8s;"></div>
+              </div>
+            </div>
+          `;
+        }).join('')}
       </div>
     `;
   },

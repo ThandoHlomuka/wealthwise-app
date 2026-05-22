@@ -95,7 +95,7 @@ function formatResponse(userQuery, knowledgeResults, webResults, userData) {
       }
       case 'Tax': {
         response += `📋 **Tax Guidance**\n\n`;
-        response += content + '\n\n`;
+        response += content + '\n\n';
 
         if (userData?.profile?.monthlyIncome) {
           const annual = userData.profile.monthlyIncome * 12;

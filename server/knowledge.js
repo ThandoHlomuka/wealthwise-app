@@ -49,7 +49,7 @@ const KNOWLEDGE = {
       'Travel allowance: Business travel at SARS prescribed rates (R4.98/km for 2025)',
     ],
     cgt: 'Capital Gains Tax: Inclusion rates are 40% for individuals (effective max rate 18%), 80% for companies. Annual exclusion: R40,000 (individuals), R300,000 on primary residence. First R2m gain on primary residence is exempt for deceased estates.',
-    dividends: 'Dividends Tax: 20% withholding tax on dividends paid by SA companies. No further tax on dividends in your hands if you're a natural person. Foreign dividends: first R100,000 exempt for SA residents.',
+    dividends: "Dividends Tax: 20% withholding tax on dividends paid by SA companies. No further tax on dividends in your hands if you're a natural person. Foreign dividends: first R100,000 exempt for SA residents.",
     tfsaRules: 'TFSA: Max R36,000/year contribution. Lifetime limit R500,000. Excess contributions taxed at 40%. No deductions for contributions, but all growth and withdrawals are tax-free. Can withdraw anytime without penalty (unlike RA).',
     tips: [
       'Max your TFSA every year before investing in taxable accounts',

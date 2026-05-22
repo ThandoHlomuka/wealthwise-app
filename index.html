@@ -16,5 +16,11 @@
   <script src="js/ai-advisor.js"></script>
   <script src="js/market-data.js"></script>
   <script src="js/app.js"></script>
+  <script>
+    // Detect if running via server (localhost:3456) vs direct file open
+    if (window.location.protocol === 'file:') {
+      console.log('📌 WealthWise AI: Open via http://localhost:3456 for full AI features');
+    }
+  </script>
 </body>
 </html>

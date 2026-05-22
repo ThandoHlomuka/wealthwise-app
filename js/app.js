@@ -1349,13 +1349,14 @@ const App = {
     const total = entries.reduce((s, [, v]) => s + v, 0);
     const colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'];
     const r = 80;
-    const ir = 50;
+    const hole = 50;
     const cx = 120;
     const cy = 120;
 
     const visible = entries.slice(0, 6);
     let cumulativePct = 0;
 
+    // Each segment: pie slice from center to outer arc (clockwise)
     const segments = visible.map(([cat, val], i) => {
       const pct = val / total;
       const startAng = cumulativePct * 360 - 90;
@@ -1367,17 +1368,14 @@ const App = {
 
       const ox = cx + r * Math.cos(sr);
       const oy = cy + r * Math.sin(sr);
-      const ix = cx + ir * Math.cos(sr);
-      const iy = cy + ir * Math.sin(sr);
       const ox2 = cx + r * Math.cos(er);
       const oy2 = cy + r * Math.sin(er);
-      const ix2 = cx + ir * Math.cos(er);
-      const iy2 = cy + ir * Math.sin(er);
 
       const large = pct > 0.5 ? 1 : 0;
       const color = colors[i % colors.length];
 
-      const d = `M ${ox} ${oy} A ${r} ${r} 0 ${large} 1 ${ox2} ${oy2} L ${ix2} ${iy2} A ${ir} ${ir} 0 ${large} 0 ${ix} ${iy} Z`;
+      // Simple pie slice: center → outer start → arc to outer end → back to center
+      const d = `M ${cx} ${cy} L ${ox} ${oy} A ${r} ${r} 0 ${large} 1 ${ox2} ${oy2} Z`;
 
       return `<path d="${d}" fill="${color}" class="donut-segment"/>`;
     }).join('');
@@ -1393,6 +1391,7 @@ const App = {
         <div style="flex-shrink: 0; width: 180px; height: 180px;">
           <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
             ${segments}
+            <circle cx="${cx}" cy="${cy}" r="${hole}" fill="var(--bg-card)"/>
             <text x="${cx}" y="${cy - 6}" text-anchor="middle" font-size="24" font-weight="800" fill="var(--text)">${this.fmt(total)}</text>
             <text x="${cx}" y="${cy + 14}" text-anchor="middle" font-size="12" fill="var(--text-muted)">Total spent</text>
           </svg>

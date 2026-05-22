@@ -1,3 +1,5 @@
+const SERVER_URL = 'http://localhost:3456';
+
 const App = {
   currentView: 'dashboard',
   profile: null,
@@ -587,11 +589,15 @@ const App = {
         </div>
       </div>
 
+      <!-- Server Status -->
+      <div id="server-status" style="display: none; padding: 0.4rem 0.75rem; margin-bottom: 0.5rem; border-radius: 8px; font-size: 0.75rem; font-weight: 600;"></div>
+
       <!-- Chatbot Section -->
       <div class="card chat-card" style="padding: 0; overflow: hidden; margin-bottom: 0.75rem;">
         <div class="chat-header" style="padding: 0.75rem 1rem; background: var(--primary); color: white; display: flex; align-items: center; gap: 0.5rem;">
           <span style="font-size: 1.2rem;">🤖</span>
           <span style="font-weight: 600;">Ask Your Financial Advisor</span>
+          <span id="server-dot" style="margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: #999;"></span>
         </div>
         <div class="chat-messages" id="chat-messages" style="height: 300px; overflow-y: auto; padding: 0.75rem; background: #fafafa;">
           <div class="chat-msg chat-msg-bot">
@@ -614,11 +620,91 @@ const App = {
         </div>
       </div>
     `;
+
+    this.checkServer().then(available => {
+      const dot = document.getElementById('server-dot');
+      const status = document.getElementById('server-status');
+      if (dot) {
+        dot.style.background = available ? '#22c55e' : '#ef4444';
+        dot.title = available ? 'Server connected' : 'Server offline (using local AI)';
+      }
+      if (status) {
+        if (!available) {
+          status.style.display = 'block';
+          status.style.background = '#fce8e6';
+          status.style.color = '#d93025';
+          status.textContent = '⚠️ AI server not connected. Using offline advisor mode. Start the server for real-time web search.';
+        } else {
+          status.style.display = 'block';
+          status.style.background = '#e6f4ea';
+          status.style.color = '#0f9d58';
+          status.textContent = '✅ AI server connected — real-time web search and full knowledge base active.';
+          setTimeout(() => { status.style.display = 'none'; }, 4000);
+        }
+      }
+    });
   },
 
   scrollToChat() {
     const chat = document.getElementById('chat-messages');
     if (chat) chat.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  },
+
+  async getChatResponse(query) {
+    const accounts = Storage.getAccounts();
+    const transactions = Storage.getTransactions();
+    const goals = Storage.getGoals();
+
+    const userData = {
+      profile: this.profile,
+      monthlySpend: AIAdvisor.calcMonthlySpend(transactions),
+      monthlyIncome: AIAdvisor.calcMonthlyIncome(transactions),
+      netWorth: AIAdvisor.calcNetWorth(accounts),
+      accountCount: accounts.length,
+      goalCount: goals.length,
+      holdingCount: (Storage.get('holdings') || []).length
+    };
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+
+      const res = await fetch(`${SERVER_URL}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, userData }),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+
+      if (res.ok) {
+        const data = await res.json();
+        return { response: data.response, source: 'server' };
+      }
+    } catch {}
+
+    const localResponse = AIAdvisor.askChatbot(query, this.profile, accounts, transactions, goals);
+    return { response: localResponse, source: 'local' };
+  },
+
+  _serverAvailable: false,
+
+  async checkServer() {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(`${SERVER_URL}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: 'ping' }),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      this._serverAvailable = res.ok;
+    } catch {
+      this._serverAvailable = false;
+    }
+    return this._serverAvailable;
   },
 
   sendChat() {
@@ -628,51 +714,45 @@ const App = {
     if (!query) return;
     input.value = '';
     this.addChatMessage('user', query);
-    this.addChatMessage('bot', '🤔 Thinking...');
+    this.addChatMessage('bot', '🤔 Consulting AI Advisor...');
 
-    setTimeout(() => {
+    this.getChatResponse(query).then(({ response, source }) => {
       const messages = document.getElementById('chat-messages');
-      if (messages) messages.removeChild(messages.lastChild);
-
-      const accounts = Storage.getAccounts();
-      const transactions = Storage.getTransactions();
-      const goals = Storage.getGoals();
-      const response = AIAdvisor.askChatbot(query, this.profile, accounts, transactions, goals);
-      this.addChatMessage('bot', response);
-    }, 600);
+      if (messages && messages.lastChild && messages.lastChild.querySelector('.chat-msg-content')?.textContent.includes('Consulting')) {
+        messages.removeChild(messages.lastChild);
+      }
+      const suffix = source === 'local' ? '\n\n_💡 Offline mode (server not connected)_' : '';
+      this.addChatMessage('bot', response + suffix);
+    });
   },
 
   quickChat(query) {
     this.addChatMessage('user', query);
-    this.addChatMessage('bot', '🤔 Thinking...');
+    this.addChatMessage('bot', '🤔 Consulting AI Advisor...');
 
-    setTimeout(() => {
+    this.getChatResponse(query).then(({ response, source }) => {
       const messages = document.getElementById('chat-messages');
-      if (messages) messages.removeChild(messages.lastChild);
-
-      const accounts = Storage.getAccounts();
-      const transactions = Storage.getTransactions();
-      const goals = Storage.getGoals();
-      const response = AIAdvisor.askChatbot(query, this.profile, accounts, transactions, goals);
-      this.addChatMessage('bot', response);
-    }, 600);
+      if (messages && messages.lastChild && messages.lastChild.querySelector('.chat-msg-content')?.textContent.includes('Consulting')) {
+        messages.removeChild(messages.lastChild);
+      }
+      const suffix = source === 'local' ? '\n\n_💡 Offline mode (server not connected)_' : '';
+      this.addChatMessage('bot', response + suffix);
+    });
   },
 
   askAboutStock(ticker) {
     const query = `Tell me about ${ticker} stock`;
     this.addChatMessage('user', query);
-    this.addChatMessage('bot', '🤔 Thinking...');
+    this.addChatMessage('bot', '🤔 Consulting AI Advisor...');
 
-    setTimeout(() => {
+    this.getChatResponse(query).then(({ response, source }) => {
       const messages = document.getElementById('chat-messages');
-      if (messages) messages.removeChild(messages.lastChild);
-
-      const accounts = Storage.getAccounts();
-      const transactions = Storage.getTransactions();
-      const goals = Storage.getGoals();
-      const response = AIAdvisor.askChatbot(query, this.profile, accounts, transactions, goals);
-      this.addChatMessage('bot', response);
-    }, 600);
+      if (messages && messages.lastChild && messages.lastChild.querySelector('.chat-msg-content')?.textContent.includes('Consulting')) {
+        messages.removeChild(messages.lastChild);
+      }
+      const suffix = source === 'local' ? '\n\n_💡 Offline mode (server not connected)_' : '';
+      this.addChatMessage('bot', response + suffix);
+    });
   },
 
   addChatMessage(type, text) {
